@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Contrato Digital | SUA87FM</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+
+body{
+  min-height:100vh;
+  background: linear-gradient(135deg,#000,#1a1a1a);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.container{
+  width:100%;
+  max-width:650px;
+  background:#ffffff;
+  border-radius:16px;
+  padding:30px;
+  box-shadow:0 20px 50px rgba(0,0,0,0.4);
+}
+
+h2{
+  text-align:center;
+  color:#c40000;
+  margin-bottom:20px;
+}
+
+label{
+  display:block;
+  margin-top:12px;
+  font-weight:600;
+  font-size:14px;
+}
+
+input,select,textarea{
+  width:100%;
+  padding:12px;
+  margin-top:5px;
+  border-radius:8px;
+  border:1px solid #ccc;
+}
+
+canvas{
+  width:100%;
+  height:200px;
+  border:2px dashed #ccc;
+  border-radius:10px;
+  margin-top:10px;
+}
+
+.buttons{
+  display:flex;
+  gap:10px;
+}
+
+button{
+  flex:1;
+  padding:14px;
+  margin-top:20px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:15px;
+}
+
+.btn-send{
+  background:#c40000;
+  color:#fff;
+}
+
+.btn-clear{
+  background:#ddd;
+}
+
+.status{
+  text-align:center;
+  margin-top:10px;
+  font-size:13px;
+}
+
+.loader{
+  display:none;
+  margin:auto;
+  border:4px solid #eee;
+  border-top:4px solid #c40000;
+  border-radius:50%;
+  width:25px;
+  height:25px;
+  animation:spin 1s linear infinite;
+}
+
+@keyframes spin{
+  100%{transform:rotate(360deg);}
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+<h2>Contrato SUA87FM 📻</h2>
+
+<label>Nome / Empresa *</label>
+<input id="nome">
+
+<label>CPF/CNPJ</label>
+<input id="cpf">
+
+<label>WhatsApp *</label>
+<input id="telefone">
+
+<label>Plano</label>
+<select id="plano">
+  <option value="350">R$ 350 - Rádio</option>
+  <option value="450">R$ 450 - Rádio + Vídeo</option>
+</select>
+
+<label>Observações</label>
+<textarea id="obs"></textarea>
+
+<label>Assinatura *</label>
+<canvas id="signature"></canvas>
+
+<div class="buttons">
+  <button class="btn-clear" onclick="limpar()">Limpar</button>
+  <button class="btn-send" onclick="enviar()">Enviar 🚀</button>
+</div>
+
+<div class="loader" id="loader"></div>
+<div class="status" id="status"></div>
+
+</div>
+
+<script>
+const canvas = document.getElementById("signature");
+const ctx = canvas.getContext("2d");
+
+// corrigir resolução real do canvas
+function resizeCanvas(){
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * ratio;
+  canvas.height = canvas.offsetHeight * ratio;
+  ctx.scale(ratio, ratio);
+}
+resizeCanvas();
+
+let desenhando = false;
+
+canvas.addEventListener("mousedown", e=>{
+  desenhando = true;
+  ctx.beginPath();
+  ctx.moveTo(e.offsetX, e.offsetY);
+});
+
+canvas.addEventListener("mouseup", ()=>desenhando=false);
+canvas.addEventListener("mousemove", desenhar);
+
+// touch
+canvas.addEventListener("touchstart", e=>{
+  desenhando = true;
+  const rect = canvas.getBoundingClientRect();
+  const t = e.touches[0];
+  ctx.beginPath();
+  ctx.moveTo(t.clientX - rect.left, t.clientY - rect.top);
+});
+
+canvas.addEventListener("touchend", ()=>desenhando=false);
+
+canvas.addEventListener("touchmove", e=>{
+  const rect = canvas.getBoundingClientRect();
+  const t = e.touches[0];
+  desenhar({
+    offsetX: t.clientX - rect.left,
+    offsetY: t.clientY - rect.top
+  });
+});
+
+function desenhar(e){
+  if(!desenhando) return;
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "#000";
+  ctx.lineTo(e.offsetX, e.offsetY);
+  ctx.stroke();
+}
+
+function limpar(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+function temAssinatura(){
+  const pixels = ctx.getImageData(0,0,canvas.width,canvas.height).data;
+  return pixels.some(v => v !== 0);
+}
+
+async function enviar(){
+
+  const nome = document.getElementById("nome").value.trim();
+  const telefone = document.getElementById("telefone").value.trim();
+
+  if(!nome || !telefone){
+    alert("Preencha os campos obrigatórios!");
+    return;
+  }
+
+  if(!temAssinatura()){
+    alert("Assine o contrato!");
+    return;
+  }
+
+  document.getElementById("loader").style.display="block";
+  document.getElementById("status").innerText="Enviando...";
+
+  const dados = {
+    nome,
+    cpf: document.getElementById("cpf").value,
+    telefone,
+    plano: document.getElementById("plano").value,
+    obs: document.getElementById("obs").value,
+    assinatura: canvas.toDataURL(),
+    data: new Date().toLocaleString()
+  };
+
+  try{
+    await fetch("https://SEU-WEBHOOK-AQUI",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(dados)
+    });
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.text("Contrato SUA87FM",10,10);
+    doc.text(`Nome: ${dados.nome}`,10,20);
+    doc.text(`Telefone: ${dados.telefone}`,10,30);
+    doc.text(`Plano: R$ ${dados.plano}`,10,40);
+
+    doc.addImage(dados.assinatura,"PNG",10,50,120,40);
+
+    doc.save("contrato.pdf");
+
+    document.getElementById("status").innerText="Enviado com sucesso!";
+  }
+  catch(e){
+    document.getElementById("status").innerText="Erro no envio.";
+  }
+
+  document.getElementById("loader").style.display="none";
+}
+</script>
+
+</body>
+</html>
